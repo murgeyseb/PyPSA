@@ -126,7 +126,7 @@ def _network_prepare_and_run_pf(network, snapshots, skip_pre, linear=False, **kw
     if not linear:
         return Dict({ 'n_iter': itdf, 'error': difdf, 'converged': cnvdf })
 
-def network_pf(network, snapshots=None, skip_pre=False, x_tol=1e-6, use_seed=False):
+def network_pf(network, snapshots=None, skip_pre=False, x_tol=1e-6, use_seed=False, relaxation_coeff=1):
     """
     Full non-linear power flow for generic network.
 
@@ -141,6 +141,8 @@ def network_pf(network, snapshots=None, skip_pre=False, x_tol=1e-6, use_seed=Fal
         Tolerance for Newton-Raphson power flow.
     use_seed : bool, default False
         Use a seed for the initial guess for the Newton-Raphson algorithm.
+    relaxation_coeff : float
+        Coefficient used in SOR (Successive Over Relaxation) for the Newton-Raphson algorithm
 
     Returns
     -------
@@ -149,10 +151,10 @@ def network_pf(network, snapshots=None, skip_pre=False, x_tol=1e-6, use_seed=Fal
     iteration error for each snapshot (rows) and sub_network (columns)
     """
 
-    return _network_prepare_and_run_pf(network, snapshots, skip_pre, linear=False, x_tol=x_tol, use_seed=use_seed)
+    return _network_prepare_and_run_pf(network, snapshots, skip_pre, linear=False, x_tol=x_tol, use_seed=use_seed, relaxation_coeff=relaxation_coeff)
 
 
-def newton_raphson_sparse(f, guess, dfdx, x_tol=1e-10, lim_iter=100):
+def newton_raphson_sparse(f, guess, dfdx, x_tol=1e-10, lim_iter=100, relaxation_coeff=1):
     """Solve f(x) = 0 with initial guess for x and dfdx(x). dfdx(x) should
     return a sparse Jacobian.  Terminate if error on norm of f(x) is <
     x_tol or there were more than lim_iter iterations.
@@ -170,7 +172,7 @@ def newton_raphson_sparse(f, guess, dfdx, x_tol=1e-10, lim_iter=100):
 
         n_iter +=1
 
-        guess = guess - spsolve(dfdx(guess),F)
+        guess = guess - relaxation_coeff * spsolve(dfdx(guess),F)
 
         F = f(guess)
         diff = norm(F,np.Inf)
@@ -186,7 +188,7 @@ def newton_raphson_sparse(f, guess, dfdx, x_tol=1e-10, lim_iter=100):
 
 
 
-def sub_network_pf(sub_network, snapshots=None, skip_pre=False, x_tol=1e-6, use_seed=False):
+def sub_network_pf(sub_network, snapshots=None, skip_pre=False, x_tol=1e-6, use_seed=False, relaxation_coeff=1):
     """
     Non-linear power flow for connected sub-network.
 
@@ -201,6 +203,8 @@ def sub_network_pf(sub_network, snapshots=None, skip_pre=False, x_tol=1e-6, use_
         Tolerance for Newton-Raphson power flow.
     use_seed : bool, default False
         Use a seed for the initial guess for the Newton-Raphson algorithm.
+    relaxation_coeff : float
+        Coefficient used in SOR (Successive Over Relaxation) for the Newton-Raphson algorithm
 
     Returns
     -------
@@ -323,7 +327,7 @@ def sub_network_pf(sub_network, snapshots=None, skip_pre=False, x_tol=1e-6, use_
 
         #Now try and solve
         start = time.time()
-        roots[i], n_iter, diff, converged = newton_raphson_sparse(f,guess,dfdx,x_tol=x_tol)
+        roots[i], n_iter, diff, converged = newton_raphson_sparse(f,guess,dfdx,x_tol=x_tol,relaxation_coeff=relaxation_coeff)
         logger.info("Newton-Raphson solved in %d iterations with error of %f in %f seconds", n_iter,diff,time.time()-start)
         iters[now] = n_iter
         diffs[now] = diff
